@@ -1,0 +1,49 @@
+#!/usr/bin/expect -f
+log_user 0
+set timeout 10
+#load config from shell script
+set ip [lindex $argv 0]
+
+#set variable
+set username "xxxxx"
+set fh [open "~/pass" r]
+set password [read $fh]
+close $fh
+
+
+#set global variable on expect
+global spawn_id
+set host $ip
+set prom "#|>"
+set username $username
+set password [string trim $password]
+spawn ssh -o StrictHostKeyChecking=no $username\@$host
+expect {
+    timeout { send_user "\nTimeout Exceeded - Check Host\n"; set first_attempt_failed 1 }
+    eof { send_user "\nSSH Connection To $host Failed\n"; set first_attempt_failed 1 }
+    "*#" {}
+    "*assword:" {
+            send "$password\n"
+    }
+}
+
+if { [info exists first_attempt_failed] && $first_attempt_failed == 1 } {
+        spawn ssh -o KexAlgorithms=diffie-hellman-group1-sha1 -o StrictHostKeyChecking=no $username@$host
+        expect {
+                timeout { send_user "\nTimeout Exceeded - Check Host\n"; exit 1 }
+                eof { send_user "\nSSH Connection To $host Failed\n"; exit 1 }
+                "*#" {}
+                "*assword:" {
+                        send "$password\n"
+                }
+        }
+}
+
+expect -re $prom
+send "ter len 0\n"
+expect -re $prom
+send "sh run\n"
+log_user 1
+expect -re $prom
+log_user 0
+send "exit\n"
